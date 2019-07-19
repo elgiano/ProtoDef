@@ -1,0 +1,10 @@
+(
+	\name: 			"ProtoDef",
+	\path: 			"ProtoDef", // path relative to the root Quarks folder
+	\summary:		"register your prototypes in SuperCollider",
+	\author: 		"Gianluca Elia",
+	\country: 		"DK",
+	\helpdoc:		"ProtoDef.html",
+	\dependencies: [],
+	\since: 		"2019"
+)
