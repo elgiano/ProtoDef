@@ -7,8 +7,9 @@ ProtoDef : Environment{
 
 	var <>defName;
 
-	*loadProtodefs{|dir|
-		dir = dir ? thisProcess.nowExecutingPath.dirname +/+ "protodefs";
+	*loadProtodefs{|dir,dirName=nil|
+		dirName = dirName ? "protodefs";
+		dir = dir ? thisProcess.nowExecutingPath.dirname +/+ dirName;
 		dir = dir +/+ "*.scd";
 		dir.loadPaths(action:{ProtoDef.defs.keys.postln})
 	}
@@ -17,20 +18,30 @@ ProtoDef : Environment{
         defs = IdentityDictionary.new;
     }
 
-	*new {|name,copyFrom=nil|
-		if(copyFrom.notNil){
-			var obj = super.newFrom(copyFrom).know_(true);
-			defs[name] = obj;
-			if(obj.initDef.notNil){
-				obj.initDef();
-			};
-		}{
-			defs[name] = defs[name] ? super.new(know:true);
+	*fromObject{|name,copyFrom,defBlock=nil|
+		var obj = super.newFrom(copyFrom ? ()).know_(true);
+		defs[name] = obj;
+		defs[name].defName = name;
+		if(obj[\initDef].notNil){
+			obj.initDef();
 		};
 
-		defs[name].defName = name;
-		^defs[name];
+		if(defBlock.notNil){
+			defs[name].use(defBlock);
+		};
 
+		^defs[name].defName;
+	}
+
+	*new {|name,defBlock=nil|
+		defs[name] = defs[name] ? super.new(know:true);
+		defs[name].defName = name;
+
+		if(defBlock.notNil){
+			defs[name].use(defBlock);
+		};
+
+		^defs[name];
 	}
 
 	getClassCode {
@@ -91,11 +102,11 @@ Prototype : Environment{
 
 	linkProtoDef{|name|
 		defName = name;
-		if(this.def.init.notNil){this.init();}
+		if(this.def[\init].notNil){this.init();}
 	}
 
 	overrideDef{
-		ProtoDef(defName,this);
+		ProtoDef.fromObject(defName,this);
 	}
 
 	def{
