@@ -5,13 +5,31 @@ ProtoDef : Environment{
 
 	classvar <defs;
 
+
 	var <>defName;
 
 	*loadProtodefs{|dir,dirName=nil|
+		var loadedDefNames, errors = [];
 		dirName = dirName ? "protodefs";
 		dir = dir ? thisProcess.nowExecutingPath.dirname +/+ dirName;
 		dir = dir +/+ "*.scd";
-		dir.loadPaths(action:{ProtoDef.defs.keys.postln})
+		loadedDefNames = dir.loadPaths(action:{|path,def|
+			"*** [ProtoDefs] Loading: %".format(path).postln;
+			def ?? {
+				errors = errors.add(path)
+			}
+		}).select(_.notNil).collect(_.defName);
+
+		"*** [ProtoDefs] % Loaded:".format(loadedDefNames.size).postln;
+		loadedDefNames.postln;
+
+		if(errors.size>0){
+			error(
+				"[ProtoDefs] % ".format(errors.size) ++
+				"definition% failed".format((errors.size!=1).if('s',''))
+			);
+			errors.do({|err| err.basename.error})
+		};
 	}
 
 	*initClass {
@@ -22,24 +40,28 @@ ProtoDef : Environment{
 		var obj = super.newFrom(copyFrom ? ()).know_(true);
 		defs[name] = obj;
 		defs[name].defName = name;
-		if(obj[\initDef].notNil){
+		obj[\initDef] !? {
 			obj.initDef();
 		};
 
-		if(defBlock.notNil){
+		defBlock !? {
 			defs[name].use(defBlock);
 		};
 
 		^defs[name].defName;
 	}
 
-	*new {|name,defBlock=nil|
+	*new {|name,defBlock=nil,parent=nil|
 		defs[name] = defs[name] ? super.new(know:true);
 		defs[name].defName = name;
 
-		if(defBlock.notNil){
+		defBlock !? {
 			defs[name].use(defBlock);
 		};
+
+		parent !? {
+			defs[name].parent = ProtoDef(parent);
+		}
 
 		^defs[name];
 	}
@@ -96,13 +118,18 @@ Prototype : Environment{
 
 	var <defName;
 
-	*new{|name|
-		^super.new().linkProtoDef(name)
+	*new{|name,beforeInit,afterInit,args|
+		^super.new().linkProtoDef(name,beforeInit,afterInit,args)
 	}
 
-	linkProtoDef{|name|
+	linkProtoDef{|name,before,after,initArgs|
 		defName = name;
-		if(this.def[\init].notNil){this.init();}
+		// beforeInit
+		before !? {this.use(before)};
+		// init
+		this.def[\init] !? {this.init(*(initArgs?[]))};
+		// afterInit
+		after !? {this.use(after)}
 	}
 
 	overrideDef{
@@ -120,23 +147,36 @@ Prototype : Environment{
 	doesNotUnderstand { arg selector ... args;
 		var func;
 
-			func = this[selector];
-			if (func.notNil) {
-				^func.functionPerformList(\value, this, args);
-			};
+		func = this[selector];
+		if (func.notNil) {
+			/*if(this.class.useEnv){
+			var result;
+			this.use{ result  = func.valueArray(args) };
+			^result;
+			}{*/
+			var result;
+			{
+				result = func.functionPerformList(\value, this, args);
+			}.try{|err|
+				error("[ProtoDef: %] '%' failed".format(this.defName,selector));
+				err.throw;
+			}
+			^result;
+			//}
+		};
 
-			if (selector.isSetter) {
-				selector = selector.asGetter;
-				if(this.respondsTo(selector)) {
-					warn(selector.asCompileString
-						+ "exists a method name, so you can't use it as pseudo-method.")
-				};
-				^this[selector] = args[0];
+		if (selector.isSetter) {
+			selector = selector.asGetter;
+			if(this.respondsTo(selector)) {
+				warn(selector.asCompileString
+					+ "exists a method name, so you can't use it as pseudo-method.")
 			};
-			func = this[\forward];
-			if (func.notNil) {
-				^func.functionPerformList(\value, this, selector, args);
-			};
+			^this[selector] = args[0];
+		};
+		func = this[\forward];
+		if (func.notNil) {
+			^func.functionPerformList(\value, this, selector, args);
+		};
 		// if everything else fails, reference the prototype definition
 		^this.referenceDef(*([selector]++[args]))
 	}
@@ -144,10 +184,28 @@ Prototype : Environment{
 	referenceDef { arg selector ... args;
 		var func = this.def[selector];
 		if (func.notNil) {
-			^func.functionPerformList(\value, this, *args);
+			var result;
+			{
+				result = func.functionPerformList(\value, this, *args);
+			}.try{|err|
+				error("[ProtoDef: %] '%' failed".format(this.defName,selector));
+				err.throw;
+			}
+			^result;
 		};
 		^nil
 	}
+
+	super{|selector,args|
+		this.def.parent !? {
+			var func = this.def.parent[selector];
+			if (func.notNil) {
+				^func.functionPerformList(\value, this, *args);
+			};
+		}
+		^nil
+	}
+
 }
 
 Prot : Prototype{}
