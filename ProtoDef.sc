@@ -11,7 +11,7 @@ ProtoDef : Environment{
 	*loadProtodefs{|dir,dirName=nil|
 		var loadedDefNames, errors = [];
 		dirName = dirName ? "protodefs";
-		dir = dir ? thisProcess.nowExecutingPath.dirname +/+ dirName;
+		dir = (dir ?? {thisProcess.nowExecutingPath.dirname}) +/+ dirName;
 		dir = dir +/+ "*.scd";
 		loadedDefNames = dir.loadPaths(action:{|path,def|
 			"*** [ProtoDefs] Loading: %".format(path).postln;
@@ -66,14 +66,14 @@ ProtoDef : Environment{
 		^defs[name];
 	}
 
-	getClassCode {
+	/*getClassCode {
 		var code = this.defName.asString ++"{\n";
 		this.select{|val| val.isFunction}.keysValuesDo{|name,func|
 			code = code ++ (name++func.def.sourceCode++";\n");
 		};
 		code = code ++ "}\n";
 		^code;
-	}
+	}*/
 
 
 }
@@ -118,18 +118,16 @@ Prototype : Environment{
 
 	var <defName;
 
-	*new{|name,beforeInit,afterInit,args|
-		^super.new().linkProtoDef(name,beforeInit,afterInit,args)
+	*new{|name,beforeInit,args|
+		^super.new().linkProtoDef(name,beforeInit,args)
 	}
 
-	linkProtoDef{|name,before,after,initArgs|
+	linkProtoDef{|name,before,initArgs|
 		defName = name;
 		// beforeInit
 		before !? {this.use(before)};
 		// init
 		this.def[\init] !? {this.init(*(initArgs?[]))};
-		// afterInit
-		after !? {this.use(after)}
 	}
 
 	overrideDef{
