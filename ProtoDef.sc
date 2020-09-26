@@ -7,6 +7,7 @@ ProtoDef : Environment{
 
 
 	var <>defName;
+	var <>parentName;
 
 	*loadProtodefs{|dir,dirName=nil|
 		var loadedDefNames, errors = [];
@@ -33,8 +34,8 @@ ProtoDef : Environment{
 	}
 
 	*initClass {
-        defs = IdentityDictionary.new;
-    }
+		defs = IdentityDictionary.new;
+	}
 
 	*fromObject{|name,copyFrom,defBlock=nil|
 		var obj = super.newFrom(copyFrom ? ()).know_(true);
@@ -60,6 +61,7 @@ ProtoDef : Environment{
 		};
 
 		parent !? {
+			defs[name].parentName = parent;
 			defs[name].parent = ProtoDef(parent);
 		}
 
@@ -67,12 +69,12 @@ ProtoDef : Environment{
 	}
 
 	/*getClassCode {
-		var code = this.defName.asString ++"{\n";
-		this.select{|val| val.isFunction}.keysValuesDo{|name,func|
-			code = code ++ (name++func.def.sourceCode++";\n");
-		};
-		code = code ++ "}\n";
-		^code;
+	var code = this.defName.asString ++"{\n";
+	this.select{|val| val.isFunction}.keysValuesDo{|name,func|
+	code = code ++ (name++func.def.sourceCode++";\n");
+	};
+	code = code ++ "}\n";
+	^code;
 	}*/
 
 
@@ -98,15 +100,15 @@ w.hello
 
 // define prototype with use:
 w.def.use{|q|
-   q.init = {|q|
-     // in a method, q is the instance, and values are stored in the instance
-     q.freq = rrand(20,20000);
-     q.synths = List[];
-     q.makeSynth = {|q| q.synths.add(Synth(\default,[\freq,q.freq]))};
-     q.freeAll = {|q,play=true| q.synths.do{|sy| sy.free}};
-   };
-   // outside of the method, q is the definition, and values are shared among instances
-   q.sharedModulation = 20;
+q.init = {|q|
+// in a method, q is the instance, and values are stored in the instance
+q.freq = rrand(20,20000);
+q.synths = List[];
+q.makeSynth = {|q| q.synths.add(Synth(\default,[\freq,q.freq]))};
+q.freeAll = {|q,play=true| q.synths.do{|sy| sy.free}};
+};
+// outside of the method, q is the definition, and values are shared among instances
+q.sharedModulation = 20;
 }
 
 // init methods
@@ -130,38 +132,15 @@ Prototype : Environment{
 		this.def[\init] !? {this.init(*(initArgs?[]))};
 	}
 
-	overrideDef{
+	overrideDef {
 		ProtoDef.fromObject(defName,this);
 	}
 
-	def{
-		^ProtoDef(defName);
-	}
+	def { ^ProtoDef(defName) }
 
-	def_{|name|
-		defName = name;
-	}
+	def_ {|name| defName = name }
 
 	doesNotUnderstand { arg selector ... args;
-		var func;
-
-		func = this[selector];
-		if (func.notNil) {
-			/*if(this.class.useEnv){
-			var result;
-			this.use{ result  = func.valueArray(args) };
-			^result;
-			}{*/
-			var result;
-			{
-				result = func.functionPerformList(\value, this, args);
-			}.try{|err|
-				error("[ProtoDef: %] '%' failed".format(this.defName,selector));
-				err.throw;
-			}
-			^result;
-			//}
-		};
 
 		if (selector.isSetter) {
 			selector = selector.asGetter;
@@ -171,38 +150,61 @@ Prototype : Environment{
 			};
 			^this[selector] = args[0];
 		};
-		func = this[\forward];
-		if (func.notNil) {
-			^func.functionPerformList(\value, this, selector, args);
-		};
-		// if everything else fails, reference the prototype definition
-		^this.referenceDef(*([selector]++[args]))
+
+		^this.prTryProtoMethod(selector, args);
 	}
 
-	referenceDef { arg selector ... args;
-		var func = this.def[selector];
-		if (func.notNil) {
-			var result;
-			{
-				result = func.functionPerformList(\value, this, *args);
-			}.try{|err|
-				error("[ProtoDef: %] '%' failed".format(this.defName,selector));
-				err.throw;
-			}
-			^result;
-		};
-		^nil
-	}
+	prTryProtoMethod {|methodName, args|
+		var func = this[methodName] ? this.def[methodName];
+		var result;
 
-	super{|selector,args|
-		this.def.parent !? {
-			var func = this.def.parent[selector];
-			if (func.notNil) {
-				^func.functionPerformList(\value, this, *args);
-			};
+		func ?? { ^nil };
+		/*if(this.class.useEnv){
+		this.use{ result  = func.valueArray(args) };
+		^result;
+		}{*/
+		{
+			result = func.functionPerformList(\value, this, args);
+		}.try{|err|
+			error("[ProtoDef: %] '%' failed".format(this.defName,methodName));
+			err.throw;
 		}
-		^nil
+		^result;
+		//}
 	}
+
+	super {|methodName,args|
+		var parent, func, result;
+		parent = this.def.parent;
+		parent ?? {
+			"[ProtoDef: %] no parent def to call for 'super.%'"
+			.format(this.defName, methodName).warn;
+			^nil
+		};
+		func = this.def.parent[methodName];
+		func ?? {
+			"[ProtoDef: %] method '%' not found in parent def %"
+			.format(this.defName, methodName, this.def.parentName).warn;
+			^nil
+		};
+
+		try{
+			result = func.functionPerformList(\value, this, args);
+		} { |err|
+			error(
+				"[ProtoDef: % : %] '%' failed"
+				.format(this.defName, this.def.parentName, methodName)
+			);
+			err.throw;
+		}
+		^result;
+	}
+
+	update { |...args| ^this.prTryProtoMethod(\update, args)}
+	play { |...args| ^this.prTryProtoMethod(\play, args)}
+	stop { |...args| ^this.prTryProtoMethod(\stop, args)}
+	clear { |...args| ^this.prTryProtoMethod(\clear, args)}
+	free { |...args| ^this.prTryProtoMethod(\free, args)}
 
 }
 
