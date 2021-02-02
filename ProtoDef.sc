@@ -12,14 +12,26 @@ ProtoDef : Environment{
 	*initClass {
 		defs = IdentityDictionary.new;
 		import = ProtoDefImporter;
+
+		ServerBoot.add { this.prOnServerBoot };
+		ServerTree.add { this.prOnServerTree };
+		ServerQuit.add { this.prOnServerQuit };
 	}
 
-	// deprecated
-	*loadProtodefs{|dir,dirName="protodefs"|
-		"ProtoDef:*loadProtodefs is DEPRECATED. Use Protodef:import instead".warn;
-		dir = (dir ? thisProcess.nowExecutingPath.dirname) +/+ dirName;
-		dir = dir +/+ "*.scd";
-		this.import.absolute(dir.pathMatch);
+	*prOnServerBoot { |server|
+		defs.do { |def|
+			def.[\defOnServerBoot] !? { def.defOnServerBoot.value(server) }
+		}
+	}
+	*prOnServerTree { |server|
+		defs.do { |def|
+			def.[\defOnServerBoot] !? { def.defOnServerTree.value(server) }
+		}
+	}
+	*prOnServerQuit { |server|
+		defs.do { |def|
+			def[\defOnServerBoot] !? { def.defOnServerQuit.value(server) }
+		}
 	}
 
 	*fromObject{|name,copyFrom,defBlock=nil|
@@ -51,6 +63,14 @@ ProtoDef : Environment{
 		}
 
 		^defs[name];
+	}
+
+	// deprecated
+	*loadProtodefs{|dir,dirName="protodefs"|
+		"ProtoDef:*loadProtodefs is DEPRECATED. Use Protodef:import instead".warn;
+		dir = (dir ? thisProcess.nowExecutingPath.dirname) +/+ dirName;
+		dir = dir +/+ "*.scd";
+		this.import.absolute(dir.pathMatch);
 	}
 
 	/*getClassCode {
