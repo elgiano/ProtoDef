@@ -38,16 +38,16 @@ Prototype : Environment{
 
 	var <defName;
 
-	*new{|name,beforeInit,args|
-		^super.new().linkProtoDef(name,beforeInit,args)
+	*new{ |name, beforeInit, args|
+		^super.new().linkProtoDef(name, beforeInit, args)
 	}
 
-	linkProtoDef{|name,before,initArgs|
+	linkProtoDef{ |name, beforeInit, initArgs|
 		defName = name;
 		// beforeInit
-		before !? {this.use(before)};
+		beforeInit !? { this.use(beforeInit) };
 		// init
-		this.def[\init] !? {this.init(*(initArgs?[]))};
+		this.def[\init] !? { this.init(*initArgs ? []) };
 	}
 
 	overrideDef {
@@ -123,6 +123,26 @@ Prototype : Environment{
 	stop { |...args| ^this.prTryProtoMethod(\stop, args)}
 	clear { |...args| ^this.prTryProtoMethod(\clear, args)}
 	free { |...args| ^this.prTryProtoMethod(\free, args)}
+	numChannels { |...args| ^this.prTryProtoMethod(\numChannels, args)}
+	choose { |...args| ^this.prTryProtoMethod(\choose, args)}
+
+	asString {|...args|
+		var protoFunc = this[\asString] ? this.def[\asString];
+		protoFunc !? { ^this.prTryProtoMethod(\asString, args) };
+		^"Prot('%'%)".format(this.defName, if(this.def.isEmpty){" (empty)"}{""});
+	}
+
+	printFields {
+		"*** Prototype fields:".postln;
+		if(this.keys.isEmpty) { "(empty)".postln } {
+			this.keys.do{|k| "%: %".format(k, this[k]).postln}
+		};
+		"*** ProtoDef fields:".postln;
+		if(this.def.keys.isEmpty) { "(empty)".postln } {
+			this.def.keys.do{|k| "%: %".format(k, this.def[k]).postln}
+		};
+
+	}
 
 }
 
