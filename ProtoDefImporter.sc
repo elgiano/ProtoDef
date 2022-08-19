@@ -1,3 +1,15 @@
+/*
+ProtoDef import mechanism. Gives three methods:
+
+- ProtoDef.import.relative(names, baseDir = "protodefs", recursive = true, verbose = true)
+imports all .scd files in baseDir, where baseDir is considered relative to thisProcess.nowExecutingPath.dirname. Specific filenames for files in that folder can be provided.
+
+- ProtoDef.import.absolute(baseDir, names, recursive, verbose)
+imports all files (or only the ones given as 'names') from baseDir, which has to be an absolute path
+
+- ProtoDef.import.fromLibrary(names, recursive, verbose)
+searches for 'names' from ProtoDefImporter.libraryPaths, and imports them if found. Library paths can be added via ProtoDefImporter.addLibraryPath().
+*/
 ProtoDefImporter {
 
 	classvar <libraryPaths;
@@ -11,8 +23,12 @@ ProtoDefImporter {
 	}
 
 	// names can be filenames or directory to import recursively
-	*absolute { |paths, baseDir = "", recursive = true, verbose = true|
-		^this.prImportFiles(paths, baseDir, recursive, verbose);
+	*absolute { |baseDir = "", names = $*, recursive = true, verbose = true|
+		if(names == $*) {
+			^this.directory(baseDir, recursive, verbose)
+		} {
+			^this.prImportFiles(names, baseDir, recursive, verbose)
+		}
 	}
 	*fromLibrary { |names, recursive = true, verbose = true|
 		var results;
