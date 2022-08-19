@@ -120,9 +120,11 @@ Prototype : Environment{
 
 	update { |...args| ^this.prTryProtoMethod(\update, args)}
 	play { |...args| ^this.prTryProtoMethod(\play, args)}
+	isPlaying { |...args| ^this.prTryProtoMethod(\isPlaying, args)}
 	stop { |...args| ^this.prTryProtoMethod(\stop, args)}
 	clear { |...args| ^this.prTryProtoMethod(\clear, args)}
 	free { |...args| ^this.prTryProtoMethod(\free, args)}
+	release { |...args| ^this.prTryProtoMethod(\free, args)}
 	numChannels { |...args| ^this.prTryProtoMethod(\numChannels, args)}
 	choose { |...args| ^this.prTryProtoMethod(\choose, args)}
 

@@ -1,16 +1,37 @@
 ProtoDefImporter {
 
+	classvar <libraryPaths;
+
+	*initClass {
+		libraryPaths = Set[]
+	}
+
+	*addLibraryPath { |...paths|
+		paths.do { |p| libraryPaths.add(p) }
+	}
+
 	// names can be filenames or directory to import recursively
 	*absolute { |paths, baseDir = "", recursive = true, verbose = true|
 		^this.prImportFiles(paths, baseDir, recursive, verbose);
 	}
-	*extension { |names, baseDir = nil, recursive = true, verbose = true|
-		baseDir = if(baseDir.notNil) {
-			Platform.userExtensionDir +/+ baseDir;
-		} {
-			Platform.userExtensionDir
-		}
-		^this.prImportFiles(names, baseDir, recursive, verbose);
+	*fromLibrary { |names, recursive = true, verbose = true|
+		var results;
+		if (names.isString) { names = names.bubble };
+		results = names.collect { |path|
+			var baseDir = libraryPaths.detect { |dir|
+				File.exists(dir +/+ path)
+			};
+			if (baseDir.isNil) {
+				"*** [ProtoDefs] '%' not found in library".format(path).warn;
+				(path: path, error: \notFound)
+			} {
+				this.prImportFiles([path], baseDir, recursive, false)
+			}
+		};
+		if (verbose) {
+			this.prPrintImportResults(results.flat.reject(_.isNil))
+		};
+		^results;
 	}
 	*relative { |names = $*, baseDir = "protodefs", recursive = true, verbose = true|
 		baseDir = thisProcess.nowExecutingPath.dirname +/+ baseDir;
@@ -52,14 +73,14 @@ ProtoDefImporter {
 
 	/* BROKEN: error catching with String:load seems to never catch anything
 	*tryFile { |path|
-		var result;
-		try {
-			"*** [ProtoDefs] Loading: %".format(path).postln;
-			result = path.load;
-		} { |error|
-			^(error: error, path: path);
-		}
-		^(def: result, path: path);
+	var result;
+	try {
+	"*** [ProtoDefs] Loading: %".format(path).postln;
+	result = path.load;
+	} { |error|
+	^(error: error, path: path);
+	}
+	^(def: result, path: path);
 	}
 	*/
 
