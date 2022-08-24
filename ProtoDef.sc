@@ -55,9 +55,9 @@ ProtoDef : Environment{
 
 		defBlock !? {
 			defs[name].use(defBlock);
-		};
-		defs[name][\initDef] !? {
-			defs[name].initDef();
+			defs[name][\initDef] !? {
+				defs[name].initDef();
+			};
 		};
 
 		parent !? {
