@@ -1,0 +1,364 @@
+TITLE:: ProtoDef
+summary:: A short summary of the package's functionality/purpose
+categories:: Extensions
+related:: Classes/Prototype, Classes/Environment
+
+emphasis::A prototype doesNotUnderstand everything::
+
+DESCRIPTION::
+Developing SuperCollider classes requires recompiling the class library every time
+a change is made. Pseudo-classes offer a way to write class-like objects that
+can be modified in real-time, without recompiling, using the link::Classes/Environment:: system. 
+
+ProtoDef helps organizing such prototyping work.
+
+section::Writing definitions
+As an example we'll write a simple timer pseudo-class:
+code::
+ProtoDef(\timer) {
+
+	// ~init is called automatically when an instance is created
+	~init = { |self|
+		self.startTime = Date.localtime.rawSeconds;
+	};
+	
+	// return elapsed seconds since self.startTime
+	~elapsedTime = { |self|
+		Date.localtime.rawSeconds - self.startTime
+	};
+
+	// return elapsed seconds and reset startTime to now
+	~partial = { |self|
+		var partialDur = self.elapsedTime;
+		self.startTime = Date.localtime.rawSeconds;
+		partialDur
+	};
+};
+::
+Now we can create an instance and call it's methods:
+code::
+// create an instance, ~init is called automatically
+t = Prot(\timer);
+t.partial; // prints time since creation
+t.partial; // prints time since previous call
+::
+The instance references its definition. This means that the definition can be
+modified or extended, and all instances will be affected:
+
+code::
+// modify a method
+ProtoDef(\timer) {
+	~partial = { |self, print = true|
+		var partialDur = self.elapsedTime;
+		self.startTime = Date.localtime.rawSeconds;
+		if (print) {
+			"elapsed time: %".format(partialDur).postln;
+		};
+		partialDur
+	};
+};
+
+t.partial // now partial prints "elapsed time: x";
+
+// add a new method
+ProtoDef(\timer) {
+	// measure exec time of a function
+	~timeBlock = { |self, block|
+		var dur;
+		protect {
+			self.partial;
+			fn.value;
+		} {
+			dur = self.partial;	
+		};
+		dur;
+	}
+};
+
+// now t can measure exec time of a function
+t.timeBlock {
+	var size = 2**16;
+	var noise = Signal.fill(size){1.0.rand2};
+	noise.fft(Signal.newClear(size), Signal.fftCosTable(size))
+}
+::
+
+section::Init function
+ProtoDefs offer an automatic instance initialization method: code::~init::.
+If defined, the method is called every time an instance is created. There are
+two ways of passing arguments to code::~init::.
+The first is to pass them as arguments to Prototype instance creation:
+code::
+// init args style
+ProtoDef(\myDef) {
+	~init = { |self, name = "no-name", color|
+		self.name = name;
+		self.color = color ? Color.rand;
+	}
+}
+// setting init args 
+x = Prot(\myDef, args: ["myname", Color.red])
+::
+This argument list has a few drawbacks though: arguments can't be passed by
+name, default values don't work (passing nil as one of the arguments doesn't
+trigger default value), and since autocompletion also doesn't work they are not
+very readable.
+
+A second way to deal with init args, which address all of the above, is to use
+the code::beforeInit:: argument function:
+code::
+ProtoDef(\myDef) {
+	~init = { |self|
+		self.name = self.name ? "no-name";
+		self.color = self.color ? Color.rand;
+	}
+}
+// setting members before init
+x = Prot(\myDef) { ~name = "myname"; ~color = Color.red }
+::
+The second argument of link::Classes/Prototype#*new:: is a function that gets
+executed on the instance before code::~init:: is called. It's a convenient place
+to set instance member values. The init function can then check on member values
+and eventually assign default values if they are nil.
+
+subsection::~initDef
+If a ProtoDef defines a method called strong::~initDef::, it will be called each
+time the ProtoDef definition is evaluated, i.e. on creation and every time the
+def is modified:
+code::
+ProtoDef(\testing) { ~initDef = { |self| "DEF INIT".postln } }
+// -> DEF INIT
+ProtoDef(\testing) { ~init = { |self| "PROT INIT".postln } }
+// -> DEF INIT
+p = Prot(\testing)
+// -> PROT INIT
+ProtoDef(\testing) { ~sayHello = { |self| "Hello".postln } }
+// -> DEF INIT
+p.sayHello
+// -> Hello
+::
+section::Inheritance
+ProtoDefs can inherit from other ProtoDefs by providing parent name as third
+argument on creation:
+code::
+ProtoDef(\taggedTimer, {
+	
+	~init = { |self|
+		self.super(\init);
+		self.tag = self.tag ? "timer"
+	};
+
+	~partial = { |self, print = true|
+		var partialDur = self.super(\partial, [false]);
+		if (print) {
+			"[%] elapsed: %".format(self.tag, partialDur).postln
+		};
+		partialDur
+	};
+}, \timer);
+
+t = Prototype(\taggedTimer) { ~tag = "test" };
+
+t.partial // prints: [test] elapsed: x
+::
+Note that self.super (link::Classes/Prototype#-super::) is used to call a parent def's method
+
+section::Importing files
+ProtoDef offers a simple way to link::#*import:: ProtoDefs defined in other
+files. It's based on a convention to give files containing ProtoDefs the
+extension strong::".proto.scd"::.
+
+code::
+// default: load all .proto.scd files in the current directory and subfolders
+ProtoDef.import
+
+// load a specific file
+ProtoDef.import(Platform.userHomeDir +/+ "Documents/some_proto_defs.proto.scd")
+
+// load a specific folder
+ProtoDef.import("~/Documents/ProtoDefs/my_lib".standardizePath)
+::
+
+The import function will by default print a report of how many and which
+ProtoDefs were imported, together with any error that might have occurred while
+loading them.
+
+In case one wants to build a library of reusable definitions, we suggest to
+define a path as a global variable in the startup file (which can be opened from
+ScIDE by File > Open Startup File):
+code::
+// in startup.scd
+~protoDir = Platform.userHomeDir +/+ "Documents/ProtoDefsLibrary";
+::
+And storing different "libraries" as different sub-folder of this path. If for
+example one stored two libraries, "my_library" and "another_library", importing
+them would look like:
+
+code::
+ProtoDef.import(~protoDir +/+ "my_library");
+ProtoDef.import(~protoDir +/+ "another_library");
+::
+
+
+section::Extending definitions
+ProtoDef definitions can be extended over multiple files. This can be useful for
+example to separate processing logic from gui code.
+code::
+// in file myObject.proto.scd
+ProtoDef(\myObject) {
+	~init = { |self| };
+	~printNumber = { |self, n | n.postln }
+}
+
+// in file gui/myObject.proto.scd
+ProtoDef(\myObject) {
+	~makeButtons = { |self|
+		5.collect { |i|
+			Button().action_{ self.printNumber(i) }
+		};
+	};
+
+	~makeGui = { |self, bounds|
+		var userView = UserView();
+		View(bounds: bounds).layout_(HLayout(
+			VLayout(*self.makeButtons),
+			userView
+		));
+	}
+}
+::
+
+section::Server hooks
+ProtoDef provides a system to register def-wise server hooks, i.e. hooks that
+are evaluated for the ProtoDef, instead that for the Prototype, akin to
+class-wise server hooks. The can be used for example to load some SynthDefs or
+Buffers that are shared by all instances. Per-instance hooks can be setup
+manually as usual.
+
+code::
+(
+ProtoDef(\testHooks) {
+	// class hooks
+	~defOnServerBoot = { "[DEF:test] server boot".postln };
+	~defOnServerTree = { "[DEF:test] server tree".postln };
+	~defOnServerQuit = { "[DEF:test] server quit".postln };
+	// instance hooks
+	~init = { |self|
+		self.id = UniqueID.next;
+		ServerBoot.add(self);
+		ServerTree.add(self);
+		ServerQuit.add(self);
+		"[test] created instance %".format(self.id).postln;
+	};
+	~doOnServerBoot = { |self|
+		"[instance:test%] server boot".format(self.id).postln
+	};
+	~doOnServerTree = { |self|
+		"[instance:test%] server tree".format(self.id).postln
+	};
+	~doOnServerQuit = { |self|
+		"[instance:test%] server quit".format(self.id).postln
+	};
+}
+)
+
+// create some instances
+p = Prot(\testHooks); q = Prot(\testHooks);
+// -> [test] created instance 1001
+// -> [test] created instance 1002
+
+s.boot
+// -> [DEF:test] server boot
+// -> [instance:test1001] server boot
+// -> [instance:test1002] server boot
+// -> [DEF:test] server tree
+// -> [instance:test1001] server tree
+// -> [instance:test1002] server tree
+
+s.quit
+// -> [DEF:test] server quit
+// -> [instance:test1001] server quit
+// -> [instance:test1002] server quit
+::
+
+section::Errors
+TODO
+
+section:: Comparison with built-in Environment pseudo-classes
+This is how a pseudo-class could look like without ProtoDef:
+code::
+(
+~myObjectDef = (~myObjectDef ?? { Environment(know: true) }).make {
+		~classVariableA = 2;
+		~init = { |self|
+			self.instVariableA = 1000.rand
+		};
+		~doSomething = { |self ...args|
+			"(myObjectDef:doSomething) args: %".format(args).postln
+		};
+}
+);
+
+(
+var instance = Environment(parent: ~myObjectDef, know: true);
+instance.init;
+instance.doSomething(\test, 1, 2)
+// -> (myObjectDef:doSomething) args: [\test, 1, 2]
+)
+::
+ProtoDef provides:
+- a global dictionary for definitions, so that they don't have to be
+stored in local or environment variables
+- simplified syntax, hiding boilerplate code that is the same in most
+situations
+- a system for code::~init:: functions, called automatically every time
+an instance is created
+- server hooks for definitions
+- error handling
+
+
+section::Special proto-method names
+ProtoDef reserves a few method names for special functions. Be aware of it when
+you write your definitions, because unlike any other methods they will be called
+by the system.
+
+list::
+##strong::~init:: is used to initialize a link::Classes/Prototype::
+##strong::~initDef:: is called each time a ProtoDef definition is evaluated
+##strong::~defOnServerBoot::, strong::~defOnServerTree::,
+strong::~defOnServerQuit:: are def-wise link::#Server hooks::
+::
+CLASSMETHODS::
+
+METHOD:: new
+Create a new ProtoDef
+
+ARGUMENT:: name
+definition name (symbol)
+
+ARGUMENT:: defBlock
+definition function. It's passed to link::Classes/Environment#-make::.
+
+ARGUMENT:: parent
+a ProtoDef name. If provided, this ProtoDef inherits from it.
+
+returns:: a ProtoDef
+
+
+METHOD:: import
+Import ProtoDefs from another file, folder or Quark
+
+ARGUMENT:: path
+Path to find definitions to import. If not an absolute path, it will be
+considered relative to link::Classes/Process#-nowExecutingPath::. If path is a
+directory, all files with extension strong::".proto.scd":: will be imported.
+It's also possible to pass
+a link::Classes/Quark::, see examples below. 
+ARGUMENT:: recursive
+If path is a folder and recursive is true, also search for strong::.proto.scd:: files
+in sub-folders
+
+ARGUMENT:: verbose
+Print a report of imported/failed failes. Note that files that return
+strong::nil:: upon execution are considered as failed, even if they successfully
+defined one or more ProtoDefs.

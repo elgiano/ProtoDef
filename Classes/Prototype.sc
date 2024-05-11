@@ -1,63 +1,26 @@
-
-// A Prototype references a ProtoDef
-// calling its methods and values when it hasn't overridden them with its own
-/*
-// Define a prototype, and implicitly a ProtoDef called \testProcess
-q = Prototype(\testProcess)
-ProtoDef(\testProcess).hello = { "Hello World".postln }
-q.hello
-ProtoDef(\testProcess).hello = {|q| "Hello World, my name is %\n".postf(q.name) }
-q.def.name = "Default"
-q.hello
-q.name = "Specific"
-q.hello
-q.clear
-q.hello
-w = Prototype(\testProcess)
-w.hello
-
-// define prototype with use:
-w.def.use{|q|
-q.init = {|q|
-// in a method, q is the instance, and values are stored in the instance
-q.freq = rrand(20,20000);
-q.synths = List[];
-q.makeSynth = {|q| q.synths.add(Synth(\default,[\freq,q.freq]))};
-q.freeAll = {|q,play=true| q.synths.do{|sy| sy.free}};
-};
-// outside of the method, q is the definition, and values are shared among instances
-q.sharedModulation = 20;
-}
-
-// init methods
-a init method on the def is called automatically on Prototype instantiation
-a initDef method on the def is called automatically on ProtoDef creation
-*/
-
 Prototype : Environment{
 
 	var <defName;
 
 	*new{ |name, beforeInit, args|
-		^super.new().linkProtoDef(name, beforeInit, args)
+		^super.new().prLinkProtoDef(name, beforeInit, args)
 	}
 
-	linkProtoDef{ |name, beforeInit, initArgs|
+	prLinkProtoDef{ |name, beforeInit, initArgs|
 		defName = name;
-		// beforeInit
 		beforeInit !? { this.use(beforeInit) };
-		// init
 		this.def[\init] !? { this.init(*initArgs ? []) };
-	}
-
-	overrideDef {
-		ProtoDef.fromObject(defName,this);
 	}
 
 	def { ^ProtoDef(defName) }
 
 	def_ {|name| defName = name }
 
+	overrideDef {
+		ProtoDef.fromObject(defName,this);
+	}
+
+	// a prototype doesNotUnderstand everything
 	doesNotUnderstand { arg selector ... args;
 
 		if (selector.isSetter) {
@@ -77,10 +40,6 @@ Prototype : Environment{
 		var result;
 
 		func ?? { ^nil };
-		/*if(this.class.useEnv){
-		this.use{ result  = func.valueArray(args) };
-		^result;
-		}{*/
 		{
 			result = func.functionPerformList(\value, this, args);
 		}.try{|err|
@@ -118,6 +77,7 @@ Prototype : Environment{
 		^result;
 	}
 
+	// pseudo-method overrides
 	update { |...args| ^this.prTryProtoMethod(\update, args)}
 	play { |...args| ^this.prTryProtoMethod(\play, args)}
 	isPlaying { |...args| ^this.prTryProtoMethod(\isPlaying, args)}
@@ -127,6 +87,7 @@ Prototype : Environment{
 	release { |...args| ^this.prTryProtoMethod(\free, args)}
 	numChannels { |...args| ^this.prTryProtoMethod(\numChannels, args)}
 	choose { |...args| ^this.prTryProtoMethod(\choose, args)}
+	count { |...args| ^this.prTryProtoMethod(\count, args)}
 
 	asString {|...args|
 		var protoFunc = this[\asString] ? this.def[\asString];

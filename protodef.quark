@@ -1,0 +1,11 @@
+(
+  name: "protodef",
+  summary: "Pseudo-class utility for interactive prototyping",
+  version: "0.0.2",
+  schelp: "ProtoDef.schelp",
+  dependencies: nil,
+  license: "GNU GPL v3.0",
+  copyright: "elgiano",
+  ext_dependency: nil,
+  url: "https://github.com/elgiano/protodef"
+)

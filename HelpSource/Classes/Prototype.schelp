@@ -1,0 +1,62 @@
+TITLE:: Prototype
+summary:: A short summary of the package's functionality/purpose
+categories:: Extensions
+related:: Classes/ProtoDef, Classes/Environment
+
+DESCRIPTION::
+Instance referring to a link::Classes/ProtoDef::
+
+CLASSMETHODS::
+
+METHOD:: new
+Create a new Prototype, referencing a link::Classes/ProtoDef::.
+ARGUMENT:: name
+parent definition name (symbol)
+
+ARGUMENT:: beforeInit
+function executed before init is called. Useful to set member values before init
+is called, since passing arguments as array is usually not readable.
+
+ARGUMENT:: args
+arguments for the init function (as Array)
+
+returns:: a Prototype
+
+code::
+
+	// beforeInit vs. init args
+	// beforeInit style
+	ProtoDef(\myDef) {
+		~init = { |self|
+			self.name = self.name ? "no-name";
+			self.color = self.color ? Color.rand;
+		}
+	}
+	// setting members before init
+	Prototype(\myDef) { ~name = "myname"; ~color = Color.red }
+
+	// init args style
+	ProtoDef(\myDef) {
+		~init = { |self, name = "no-name", color|
+			self.name = name;
+			self.color = color ? Color.rand;
+		}
+	}
+	// setting init args 
+	Prototype(\myDef, args: ["myname", Color.red])
+::
+
+INSTANCEMETHODS::
+
+METHOD:: super
+In case this prototype's ProtoDef has a parent ProtoDef, use this method to call
+methods of the parent def.
+
+ARGUMENT:: name
+method's name
+
+ARGUMENT:: args
+Array of arguments for the parent's method
+
+returns:: the return value of the parent's method, or nil (with a warning) if
+either the parent or method was not found.

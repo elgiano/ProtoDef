@@ -4,14 +4,13 @@
 ProtoDef : Environment{
 
 	classvar <defs;
-	classvar <import;
+	classvar currentImportNames;
 
 	var <>defName;
 	var <>parentName;
 
 	*initClass {
 		defs = IdentityDictionary.new;
-		import = ProtoDefImporter;
 
 		ServerBoot.add { this.prOnServerBoot };
 		ServerTree.add { this.prOnServerTree };
@@ -25,16 +24,16 @@ ProtoDef : Environment{
 	}
 	*prOnServerTree { |server|
 		defs.do { |def|
-			def.[\defOnServerBoot] !? { def.defOnServerTree.value(server) }
+			def.[\defOnServerTree] !? { def.defOnServerTree.value(server) }
 		}
 	}
 	*prOnServerQuit { |server|
 		defs.do { |def|
-			def[\defOnServerBoot] !? { def.defOnServerQuit.value(server) }
+			def[\defOnServerQuit] !? { def.defOnServerQuit.value(server) }
 		}
 	}
 
-	*fromObject{|name,copyFrom,defBlock=nil|
+	*fromObject{ | name, copyFrom, defBlock = nil |
 		var obj = super.newFrom(copyFrom ? ()).know_(true);
 		defs[name] = obj;
 		defs[name].defName = name;
@@ -49,7 +48,7 @@ ProtoDef : Environment{
 		^defs[name].defName;
 	}
 
-	*new {|name,defBlock=nil,parent=nil|
+	*new { |name, defBlock = nil, parent = nil|
 		defs[name] = defs[name] ? super.new(know:true);
 		defs[name].defName = name;
 
@@ -63,17 +62,18 @@ ProtoDef : Environment{
 		parent !? {
 			defs[name].parentName = parent;
 			defs[name].parent = ProtoDef(parent);
-		}
+		};
+
+		// register name if importing
+		this.prLogImport(name);
 
 		^defs[name];
 	}
 
-	// deprecated
-	*loadProtodefs{|dir,dirName="protodefs"|
-		"ProtoDef:*loadProtodefs is DEPRECATED. Use Protodef:import instead".warn;
-		dir = (dir ? thisProcess.nowExecutingPath.dirname) +/+ dirName;
-		dir = dir +/+ "*.scd";
-		this.import.absolute(dir.pathMatch);
+	printOn { |stream|
+		if (stream.atLimit) { ^this };
+		stream << this.class.name << "(" << defName << ")";
+		stream << "[" << this.size << "]";
 	}
 
 	/*getClassCode {
